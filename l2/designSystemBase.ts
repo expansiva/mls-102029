@@ -28,6 +28,21 @@ export interface DsFont {
   faces?: DsFontFace[];                            // custom: @font-face sources
 }
 
+/**
+ * Molecule-token reconciliation for a DS entry: the `--ml-*` vocabulary of the used
+ * molecule groups mapped to `--ds-*` expressions. Lives on the entry (same home as the
+ * tokens) and is applied by the render into `:root` (see {@link tokensCssFromTheme}).
+ *
+ * Runtime-clean core interface — the reconciliation agent (`_102020_/l2/dsMatch`)
+ * re-exports it so both sides share one shape.
+ */
+export interface DsTokenReconciliation {
+  version: string;                        // `${dsTokensHash}/${mlVocabHash}` — staleness key
+  usedGroups?: string[];                  // groups whose --ml-* were reconciled (accumulates)
+  map: Record<string, string | null>;    // --ml-* → css expr (var(--ds-*)/derived); null = keep default
+  pinned?: Record<string, string>;        // manual overrides — win over the agent, emitted last
+}
+
 export interface IDesignSystemTokens {
   themeName: string;
   description: string;
@@ -38,6 +53,8 @@ export interface IDesignSystemTokens {
   fonts?: DsFont[];
   /** Correlates this entry with the generation config bucket `designSystems[dsIndex]` in l5/project.json (and the `page<layout><ds>` folders). Falls back to the array position + 1 when absent. */
   dsIndex?: string;
+  /** Molecule-token reconciliation (`--ml-*` → `--ds-*`), applied by the render into `:root`. */
+  tokenReconciliation?: DsTokenReconciliation;
 }
 
 export interface IDesignSystem {
@@ -91,7 +108,7 @@ export async function getTokensCss(nameOrIndex?: number | string, path?: string)
  * (no I/O) — the shared core of both the runtime {@link getTokensCss} and the editor variant
  * (`_102027_/l2/designSystemBase.getTokensCss`).
  *
- * @param tokenInfo - The theme entry (color + typography + global maps; dark via `_dark-` prefix; optional `fonts`).
+ * @param tokenInfo - The theme entry (color + typography + global maps; dark via `_dark-` prefix; optional `fonts`; optional `tokenReconciliation`).
  * @returns The compiled CSS string.
  */
 export function tokensCssFromTheme(tokenInfo: IDesignSystemTokens): string {
@@ -105,7 +122,29 @@ export function tokensCssFromTheme(tokenInfo: IDesignSystemTokens): string {
   const tokensCss = convertLessTokensToCss(cssVars, themedTokens.root);
 
   const fontLoads = getFontLoadsCss(tokenInfo.fonts);
-  return fontLoads ? `${fontLoads}\n${tokensCss}` : tokensCss;
+  const mlTokensCss = getMlTokensCss(tokenInfo.tokenReconciliation);
+  return [fontLoads, tokensCss, mlTokensCss].filter(Boolean).join('\n');
+}
+
+/**
+ * Molecule-token reconciliation as a `:root` block: each `--ml-*` mapped to its `--ds-*`
+ * expression (`map`, then `pinned` overrides which win). `null`/empty values are skipped —
+ * the molecule keeps its own default. Theme-agnostic: the values point at `var(--ds-*)`,
+ * which already switch in the dark block, so a single `:root` block covers both themes.
+ *
+ * @param reconciliation - The entry's `tokenReconciliation`; absent/empty yields an empty string.
+ * @returns The `:root { --ml-*: …; }` block, or an empty string when nothing is mapped.
+ */
+export function getMlTokensCss(reconciliation?: DsTokenReconciliation): string {
+  if (!reconciliation) return '';
+  const final: Record<string, string | null> = { ...reconciliation.map, ...(reconciliation.pinned ?? {}) };
+  const lines: string[] = [];
+  for (const key of Object.keys(final).sort()) {
+    const value = final[key];
+    if (typeof value !== 'string' || !value.trim()) continue; // null/empty = keep the molecule default
+    lines.push(`\t--${key.replace(/^--/, '')}: ${value.trim()};`);
+  }
+  return lines.length ? `:root{\n${lines.join('\n')}\n}` : '';
 }
 
 function googleImportUrl(family: string, weights?: number[]): string {
