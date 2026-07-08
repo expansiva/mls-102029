@@ -160,16 +160,12 @@ export function propertyDataSource(options?: PropertyDeclaration) {
           const attributeValue = this.hasAttribute(attributeName) ? this.getAttribute(attributeName) : '';
 
           if (typeof attributeValue === 'string' && attributeValue.startsWith('{{') && attributeValue.endsWith('}}')) {
-            // initialization ex selectedvalue="{{globalState.users[0].sex}}"
-            // dynamic data from json
-            if (options?.reflect) {
-              const attributeValueR = this.hasAttribute(attributeName) ? this.getAttribute(attributeName) : '';
-              if (attributeValueR !== value) this.setAttribute(attributeName, value);
-            }
+            // NaN here is noise from Lit's attribute converter (Number("{{...}}")), not data:
+            // register the ICA subscription but do NOT write NaN to the global state and do
+            // NOT reflect it over the {{...}} attribute (it would destroy the binding).
             const stateKey = attributeValue.replace(/[{{}}]/g, '').trim();
             prepareForNotification.call(this, attributeName, [stateKey]);
             this[`_${attributeName}`] = value;             // Store new value locally
-            setState(stateKey, value);              // Update global state
           } else {
             this[`_${attributeName}`] = value;
           }
