@@ -299,6 +299,8 @@ const insideLessFunctionRegex = new RegExp(`\\b(${lessOnlyFunctions.join("|")})\
  */
 export function convertLessTokensToCss(less: string, tokens: IKeyValueToken): string {
 
+  if(!tokens) return '';
+
   const lessTokens = new Set(Object.keys(tokens));
   return less.replace(/@([a-zA-Z0-9-_]+)/g, (match, token, offset, fullText) => {
     if (!lessTokens.has(token)) {
