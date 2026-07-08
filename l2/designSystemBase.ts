@@ -60,7 +60,7 @@ export interface IDarkLight {
  * @returns The compiled CSS string, or an empty string when the project has no design system.
  * @throws When the design system exists but its tokens fail to compile.
  */
-export async function getTokensCss(theme?: number | string, path?: string): Promise<string> {
+export async function getTokensCss(nameOrIndex?: number | string, path?: string): Promise<string> {
   let tokens: IDesignSystemTokens[] = [];
 
   try {
@@ -74,28 +74,38 @@ export async function getTokensCss(theme?: number | string, path?: string): Prom
   if (tokens.length === 0) return '';
 
   try {
-    let tokenInfo = typeof theme === 'string'
-      ? tokens.find((item) => item.themeName === theme)
-      : tokens[theme || 0];
+    let tokenInfo = typeof nameOrIndex === 'string'
+      ? tokens.find((item) => item.themeName === nameOrIndex)
+      : tokens.find((item) => item.dsIndex === nameOrIndex?.toString())
     if (!tokenInfo) tokenInfo = tokens[0]; // If not defined theme, select first design system
-
-    const allTokens = {
-      ...tokenInfo.color,
-      ...tokenInfo.typography,
-      ...tokenInfo.global
-    };
-
-    const themedTokens = getDarkAndLight(allTokens);
-    const cssVars = getCssVars(themedTokens);
-    const tokensCss = convertLessTokensToCss(cssVars, themedTokens.root);
-
-    const fontLoads = getFontLoadsCss(tokenInfo.fonts);
-    return fontLoads ? `${fontLoads}\n${tokensCss}` : tokensCss;
-
+    return tokensCssFromTheme(tokenInfo);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`[getTokensCss] Error compiling tokens: ${message}`);
   }
+}
+
+/**
+ * Compile ONE theme entry into ready-to-inject CSS: font-loading rules (`@import`/`@font-face`)
+ * followed by the `:root` / `[data-theme="dark"], :root.dark` custom-property blocks. Pure
+ * (no I/O) — the shared core of both the runtime {@link getTokensCss} and the editor variant
+ * (`_102027_/l2/designSystemBase.getTokensCss`).
+ *
+ * @param tokenInfo - The theme entry (color + typography + global maps; dark via `_dark-` prefix; optional `fonts`).
+ * @returns The compiled CSS string.
+ */
+export function tokensCssFromTheme(tokenInfo: IDesignSystemTokens): string {
+  const allTokens = {
+    ...tokenInfo.color,
+    ...tokenInfo.typography,
+    ...tokenInfo.global
+  };
+  const themedTokens = getDarkAndLight(allTokens);
+  const cssVars = getCssVars(themedTokens);
+  const tokensCss = convertLessTokensToCss(cssVars, themedTokens.root);
+
+  const fontLoads = getFontLoadsCss(tokenInfo.fonts);
+  return fontLoads ? `${fontLoads}\n${tokensCss}` : tokensCss;
 }
 
 function googleImportUrl(family: string, weights?: number[]): string {
