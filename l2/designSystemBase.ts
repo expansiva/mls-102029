@@ -36,6 +36,8 @@ export interface IDesignSystemTokens {
   global: IKeyValueToken;
   /** Font roles that need LOADING (@import/@font-face). The family value itself still lives as a regular token (e.g. `typography['font-family-primary']`). */
   fonts?: DsFont[];
+  /** Correlates this entry with the generation config bucket `designSystems[dsIndex]` in l5/project.json (and the `page<layout><ds>` folders). Falls back to the array position + 1 when absent. */
+  dsIndex?: string;
 }
 
 export interface IDesignSystem {
