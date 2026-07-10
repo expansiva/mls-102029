@@ -233,8 +233,43 @@ export async function execBff<TData = unknown>(
 
     traceLazy('request.response', {
       routine,
+      status: response.status,
     });
-    return response.json();
+
+    // Read the body as text first so a non-JSON response (e.g. a 404 HTML error page, common
+    // when the BFF route/backend is unavailable) becomes a clean normalized error instead of
+    // a "Unexpected token '<'" JSON parse exception.
+    const bodyText = await response.text();
+
+    if (!response.ok) {
+      traceLazy('request.httpError', { routine, status: response.status });
+      return {
+        ok: false,
+        data: null,
+        error: {
+          code: `HTTP_${response.status}`,
+          message: response.status === 404
+            ? 'Rotina ou servico nao encontrado (404).'
+            : `Erro do servidor (${response.status}).`,
+          details: bodyText.slice(0, 300),
+        },
+      };
+    }
+
+    try {
+      return JSON.parse(bodyText) as BffClientResponse<TData>;
+    } catch {
+      traceLazy('request.badResponse', { routine });
+      return {
+        ok: false,
+        data: null,
+        error: {
+          code: 'BAD_RESPONSE',
+          message: 'Resposta invalida do servidor (nao-JSON).',
+          details: bodyText.slice(0, 300),
+        },
+      };
+    }
   } catch (error) {
     if (signal.aborted) {
       traceLazy('request.timeout', {
