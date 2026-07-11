@@ -1,5 +1,7 @@
 /// <mls fileReference="_102029_/l2/contracts/bootstrap.ts" enhancement="_blank" />
 
+import type { ProjectNavigationEntry } from '/_102029_/l2/runtimeConfigTypes.js';
+
 export type MasterFrontendShellMode = 'spa' | 'pwa';
 
 export type MasterFrontendDeviceKind = 'desktop' | 'mobile';
@@ -97,17 +99,10 @@ export interface MasterFrontendRouteDefinition {
 export interface MasterFrontendModuleFrontendDefinition {
   pageTitle?: string;
   device?: MasterFrontendDeviceKind;
-  navigation?: MasterFrontendNavigationItem[];
+  navigation?: ProjectNavigationEntry[];
   routes: MasterFrontendRouteDefinition[];
   headerRenderer?: MasterFrontendRegionRendererConfig;
   asideRenderer?: MasterFrontendRegionRendererConfig;
-}
-
-export interface MasterFrontendNavigationItem {
-  id: string;
-  label: string;
-  href: string;
-  description?: string;
 }
 
 export interface MasterFrontendModuleShellPreferences {
@@ -126,8 +121,8 @@ export interface MasterFrontendBootConfig {
   asideEntrypoint?: string;
   asideTag?: string;
   pageTitle?: string;
-  navigation?: MasterFrontendNavigationItem[];
-  moduleLinks?: MasterFrontendNavigationItem[];
+  navigation?: ProjectNavigationEntry[];
+  moduleLinks?: ProjectNavigationEntry[];
   layout: MasterFrontendLayoutConfig;
   clientShell?: MasterFrontendClientShellConfig;
 }

@@ -89,6 +89,11 @@ export interface ProjectModuleConfig {
   basePath: string;
   shellMode: 'spa' | 'pwa';
   navigation?: ProjectNavigationEntry[];
+  /** Build-time hint (stripped from the emitted runtimeConfig.ts): when set to a module.js path,
+   *  the serializer emits `import { moduleFrontendDefinition as <alias> } from "<path>"` and
+   *  `navigation: <alias>.navigation` instead of inlining the array — so external modules
+   *  reference their own module.ts (self-contained; the client never duplicates their nav). */
+  navigationFromModule?: string;
   frontendEntrypoints?: {
     desktop?: ProjectModuleFrontendEntrypoint;
     mobile?: ProjectModuleFrontendEntrypoint;
@@ -195,6 +200,11 @@ export interface L5Language {
   path?: string;
 }
 
+export interface L5Layout {
+  name?: string;
+  [key: string]: unknown;
+}
+
 /** Manual customization carried by the client project; composers translate these
  *  fields into the generated config.json instead of hand-editing it (the composed
  *  file is overwritten on every publish). */
@@ -215,6 +225,7 @@ export interface L5ProjectJson {
   orgName?: string;
   designSystems?: Array<Record<string, unknown>>;
   languages?: L5Language[];
+  layouts?: Record<string, L5Layout>;
   plugins?: Record<string, unknown>;
   reasons?: Record<string, unknown>;
   services?: unknown[];
