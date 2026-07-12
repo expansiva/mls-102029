@@ -70,9 +70,25 @@ async function idbAdd(event: ClientTelemetryEvent): Promise<void> {
   }
 }
 
+// Frontend error capture guards: keep the signal, drop the noise.
+const ERROR_STACK_MAX_CHARS = 4000;
+const ERROR_SESSION_CAP = 20; // max error events pushed per page session
+const ERROR_REPEAT_RESEND_MAX = 3; // after this many repeats, only count locally
+
+function truncateStack(stack: string | undefined | null): string | undefined {
+  if (!stack) return undefined;
+  return stack.length > ERROR_STACK_MAX_CHARS ? `${stack.slice(0, ERROR_STACK_MAX_CHARS)}\n[truncated]` : stack;
+}
+
+function isBrowserExtensionSource(...sources: Array<string | undefined | null>): boolean {
+  return sources.some((s) => !!s && (s.includes('chrome-extension://') || s.includes('moz-extension://') || s.includes('safari-extension://')));
+}
+
 class TelemetryQueue {
   private queue: ClientTelemetryEvent[] = [];
   private userId = 'anonymous';
+  private errorCounts = new Map<string, number>();
+  private errorEventsPushed = 0;
 
   constructor() {
     if (typeof globalThis.window === 'undefined') {
@@ -92,29 +108,20 @@ class TelemetryQueue {
     });
 
     window.addEventListener('error', (ev) => {
-      this.push({
-        eventType: 'js_error',
-        label: ev.message ?? 'Unknown error',
-        metadata: {
-          filename: ev.filename,
-          lineno: ev.lineno,
-          colno: ev.colno,
-        },
-        recordedAt: new Date().toISOString(),
+      this.pushError('js_error', ev.message ?? 'Unknown error', {
+        filename: ev.filename,
+        lineno: ev.lineno,
+        colno: ev.colno,
+        stack: truncateStack((ev.error as Error | undefined)?.stack),
       });
-      this.sendBeacon();
     });
 
     window.addEventListener('unhandledrejection', (ev) => {
-      const msg = ev.reason instanceof Error
-        ? ev.reason.message
-        : String(ev.reason ?? 'Unhandled rejection');
-      this.push({
-        eventType: 'unhandled_rejection',
-        label: msg,
-        recordedAt: new Date().toISOString(),
+      const reason = ev.reason as Error | undefined;
+      const msg = reason instanceof Error ? reason.message : String(ev.reason ?? 'Unhandled rejection');
+      this.pushError('unhandled_rejection', msg, {
+        stack: truncateStack(reason instanceof Error ? reason.stack : undefined),
       });
-      this.sendBeacon();
     });
 
     window.addEventListener('beforeunload', () => {
@@ -122,6 +129,55 @@ class TelemetryQueue {
         this.sendBeacon();
       }
     });
+  }
+
+  /**
+   * Error-specific push: dedupes repeats (same message/source) bumping a
+   * repeatCount instead of flooding, skips browser-extension noise, caps the
+   * session volume, and never throws (an error handler must not error).
+   */
+  private pushError(eventType: string, label: string, metadata: { filename?: string; lineno?: number; colno?: number; stack?: string }): void {
+    try {
+      if (isBrowserExtensionSource(metadata.filename, metadata.stack)) return;
+
+      const key = `${eventType}|${label}|${metadata.filename ?? ''}|${metadata.lineno ?? ''}`;
+      const count = (this.errorCounts.get(key) ?? 0) + 1;
+      this.errorCounts.set(key, count);
+
+      if (count > 1) {
+        // Same error again: if its twin is still queued, just bump the counter.
+        const queued = this.queue.find((e) => e.metadata?.dedupeKey === key);
+        if (queued?.metadata) {
+          queued.metadata.repeatCount = count;
+          return;
+        }
+        // Already flushed: re-report a few times (with the updated count), then only count.
+        if (count > ERROR_REPEAT_RESEND_MAX) return;
+      }
+
+      if (this.errorEventsPushed >= ERROR_SESSION_CAP) return;
+      this.errorEventsPushed += 1;
+      this.push({
+        eventType,
+        label,
+        metadata: { ...metadata, repeatCount: count, dedupeKey: key },
+        recordedAt: new Date().toISOString(),
+      });
+      this.scheduleErrorFlush();
+    } catch {
+      // never throw from the error path
+    }
+  }
+
+  private errorFlushTimer: number | null = null;
+
+  /** Coalesce error bursts: wait 1s before the beacon so repeats dedupe into the queued event. */
+  private scheduleErrorFlush(): void {
+    if (this.errorFlushTimer !== null) return;
+    this.errorFlushTimer = window.setTimeout(() => {
+      this.errorFlushTimer = null;
+      this.sendBeacon();
+    }, 1000);
   }
 
   setUserId(id: string): void {
