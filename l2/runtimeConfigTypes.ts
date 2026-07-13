@@ -89,11 +89,6 @@ export interface ProjectModuleConfig {
   basePath: string;
   shellMode: 'spa' | 'pwa';
   navigation?: ProjectNavigationEntry[];
-  /** Build-time hint (stripped from the emitted runtimeConfig.ts): when set to a module.js path,
-   *  the serializer emits `import { moduleFrontendDefinition as <alias> } from "<path>"` and
-   *  `navigation: <alias>.navigation` instead of inlining the array — so external modules
-   *  reference their own module.ts (self-contained; the client never duplicates their nav). */
-  navigationFromModule?: string;
   frontendEntrypoints?: {
     desktop?: ProjectModuleFrontendEntrypoint;
     mobile?: ProjectModuleFrontendEntrypoint;
