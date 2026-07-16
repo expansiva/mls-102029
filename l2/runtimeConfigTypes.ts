@@ -32,6 +32,10 @@ export interface ProjectModuleFrontendConfig {
   moduleEntrypoint?: string;
   moduleSource?: string;
   pages?: ProjectFrontendPageConfig[];
+  // Generated declarative BFF test files (page11 <page>.test.ts) for this module. The devenv monitor
+  // Tests runner discovers them here and imports the compiled .js via resolveProjectModuleImportUrl —
+  // the runtime never imports the client project directly. Paths are project-relative (_<id>_/...).
+  pageTests?: string[];
 }
 
 export interface ProjectPersistenceModuleConfig {
