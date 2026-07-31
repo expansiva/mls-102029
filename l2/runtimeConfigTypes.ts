@@ -92,6 +92,8 @@ export interface ProjectModuleConfig {
   moduleId: string;
   basePath: string;
   shellMode: 'spa' | 'pwa';
+  languages?: string[];
+  designSystems?: string[];
   navigation?: ProjectNavigationEntry[];
   frontendEntrypoints?: {
     desktop?: ProjectModuleFrontendEntrypoint;

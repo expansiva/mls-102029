@@ -115,6 +115,9 @@ export interface MasterFrontendBootConfig {
   basePath: string;
   shellMode: MasterFrontendShellMode;
   device: MasterFrontendDeviceKind;
+  languages?: string[];
+  designSystem?: string;
+  designSystems?: string[];
   routes: MasterFrontendRouteDefinition[];
   headerEntrypoint?: string;
   headerTag?: string;
