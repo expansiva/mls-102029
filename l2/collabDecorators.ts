@@ -1,4 +1,4 @@
-/// <mls fileReference="_102029_/l2/collabDecorators.ts" enhancement="_102029_/l2/enhancementLit"/>
+/// <mls fileReference="_102029_/l2/collabDecorators.ts" enhancement="_102027_/l2/enhancementLit"/>
 
 import { PropertyDeclaration } from 'lit';
 import { property } from 'lit/decorators.js';
@@ -180,14 +180,30 @@ export function propertyDataSource(options?: PropertyDeclaration) {
           if (typeof attributeValue === 'string' && attributeValue.startsWith('{{') && attributeValue.endsWith('}}')) {
             // initialization ex selectedvalue="{{globalState.users[0].sex}}"
             // dynamic data from json
-            if (options?.reflect) {
+            //if (options?.reflect) {
+            if (options?.reflect && this.hasUpdated) {
               const attributeValueR = this.hasAttribute(attributeName) ? this.getAttribute(attributeName) : '';
               if (attributeValueR !== value) this.setAttribute(attributeName, value);
             }
             const stateKey = attributeValue.replace(/[{{}}]/g, '').trim();
             prepareForNotification.call(this, attributeName, [stateKey]);
-            this[`_${attributeName}`] = value;
-            setState(stateKey, value);
+            //this[`_${attributeName}`] = value;
+            //setState(stateKey, value);
+
+            // Lit's Boolean converter is `v => v !== null`, so a PRESENT attribute always yields
+            // `true` — including the literal "{{path}}". Writing that to the global state
+            // overwrites real data with `true` on every upgrade (same class of noise the Number
+            // branch above guards as NaN, but `true` is not a detectable sentinel).
+            // Until the element finishes its first update the value can only be converter noise,
+            // so the STATE wins; afterwards it is a genuine assignment (e.g. the playground
+            // toggle's `this.value = input.checked`) and must propagate.
+            if (!this.hasUpdated) {
+              this[`_${attributeName}`] = getState(stateKey);
+            } else {
+              this[`_${attributeName}`] = value;
+              setState(stateKey, value);
+            }            
+
           } else {
             this[`_${attributeName}`] = value;
           }
