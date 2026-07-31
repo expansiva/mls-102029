@@ -5,6 +5,9 @@
   "scripts": {
     "buildCI": "node ../scripts/buildCI/buildCI.mjs 102029"
   },
+   "actionDependencies": {
+    "mls-102027": "git+https://github.com/expansiva/mls-102027.git"    
+  }
   "author": "",
   "license": "ISC"
 }
