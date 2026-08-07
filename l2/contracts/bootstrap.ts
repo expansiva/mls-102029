@@ -58,6 +58,8 @@ export interface MasterFrontendRegionRendererConfig {
 export interface MasterFrontendDynamicRegionConfig {
   renderer: MasterFrontendRegionRendererConfig;
   widthPx?: number;
+  /** Fixed header band height. Equal values across profiles = no layout shift on switch. */
+  heightPx?: number;
   source?: string;
   switchWithoutRouteReload?: boolean;
   props?: Record<string, unknown>;
@@ -162,6 +164,13 @@ declare global {
       setHeaderRenderer: (renderer: MasterFrontendRegionRendererConfig, props?: Record<string, unknown>) => Promise<void>;
       setAsideRenderer: (renderer: MasterFrontendRegionRendererConfig, props?: Record<string, unknown>) => Promise<void>;
       setShellProfile: (profileName: string) => Promise<void>;
+    };
+    /** Unified nav3 (runtime): content-region tabs hosting arbitrary elements. */
+    collabRuntimeNav3?: {
+      openTab: (tab: { id: string; title: string; element: unknown; closable?: boolean }) => void;
+      closeTab: (id: string) => void;
+      activateTab: (id: string) => void;
+      listTabs: () => string[];
     };
   }
 
