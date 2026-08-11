@@ -748,9 +748,15 @@ export const DEFAULT_TOKENS_TEMPLATE: { color: IKeyValueToken; global: IKeyValue
     "breakpoint-small": "544px",
     "breakpoint-medium": "768px",
     "breakpoint-large": "1012px",
-    "transition-slow": "0.2s",
+    // The name states the SPEED, so the duration has to fall as the name gets
+    // faster: fast < normal < slow. These three were inverted (fast was the
+    // longest at 0.5s), which made `@transition-fast` produce the sluggish
+    // animation and `@transition-slow` the snappy one. Key order is kept so the
+    // DS plugin rows and MANDATORY_TOKEN_KEYS.global do not shift; only the
+    // values were swapped. Do not "restore" the ascending values here.
+    "transition-slow": "0.5s",
     "transition-normal": "0.3s",
-    "transition-fast": "0.5s",
+    "transition-fast": "0.2s",
     "space-base-unit": "0.25rem",
     "space-8": "calc(@space-base-unit * 2)",
     "space-16": "calc(@space-base-unit * 4)",
