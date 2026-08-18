@@ -468,6 +468,14 @@ function _onModelChange(e: monaco.editor.IModelContentChangedEvent, activeModel:
 
     activeModel.changeTimeout = window.setTimeout(async () => {
 
+        // The debounce fires AFTER the model may have been released: an agent run borrows a model to
+        // compile a generated file and disposes it when the compile ends, and this callback still had a
+        // timer in flight. Everything below maintains the UI of an OPEN editor (tab status, decorations)
+        // and reads `model.getValue()`/`getLineCount()`, which throw on a disposed model — 11 stack
+        // traces in one frontend run. For a model nobody is showing there is no UI to update, and the
+        // content is already durable in stor, so skipping is the correct semantics, not error suppression.
+        if (activeModel.model?.isDisposed?.()) return;
+
         try {
 
             switch (storFile.extension) {

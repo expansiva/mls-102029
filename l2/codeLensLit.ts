@@ -7,6 +7,10 @@ export function setCodeLens(model1: mls.editor.IModelTS) {
     clearCodeLens(model1);
     const { model, compilerResults, storFile } = model1;
     if (!storFile || !model || !compilerResults) return;
+    // A code lens decorates an OPEN editor. When the model was released after a compile (agent runs
+    // borrow one per generated file) there is no editor left to decorate, and `getLineCount()` below
+    // throws inside a promise nobody awaits — `Uncaught (in promise) Model is disposed!`.
+    if (model.isDisposed?.()) return;
     const { decorators } = compilerResults;
     if (storFile.shortName.startsWith('enhancement')) return;
     setCodeLensDecoratorClass(model, decorators);
@@ -45,7 +49,9 @@ async function setCodeLensServiceDetails(model: monaco.editor.ITextModel) {
 
 function findLinesByText(model: monaco.editor.ITextModel, textToFind: string): number[] {
     const lines: number[] = [];
-    if (!model) return lines;
+    // Also guarded HERE: `setCodeLensServiceDetails` is async, so the model can be disposed between the
+    // check above and this read — the residual window the entry guard cannot cover.
+    if (!model || model.isDisposed?.()) return lines;
     const lineCount = model.getLineCount();
     for (let lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
         const lineText = model.getLineContent(lineNumber);
