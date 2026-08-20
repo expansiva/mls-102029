@@ -56,6 +56,8 @@ export interface ProjectRegionRendererConfig {
 export interface ProjectDynamicRegionConfig {
   renderer: ProjectRegionRendererConfig;
   widthPx?: number;
+  /** Fixed header band height. Equal values across profiles = no layout shift on switch. */
+  heightPx?: number;
   source?: string;
   switchWithoutRouteReload?: boolean;
   props?: Record<string, unknown>;
@@ -205,6 +207,25 @@ export interface L5Layout {
   name?: string;
   [key: string]: unknown;
 }
+
+/** Brand identity shown by a header profile (resolved by AuraHeaderBase at runtime). */
+export interface AppHeaderBrand {
+  title: string;
+  subtitle?: string;
+  /**
+   * Inline SVG markup of the mark (what agentGenerateLogo writes). Preferred over `logoUrl`: an
+   * inlined mark inherits `currentColor`, so it follows the design system in light and dark, which
+   * an `<img src="*.svg">` cannot do (an external SVG never sees the page's CSS).
+   */
+  logoSvg?: string;
+  /** `.svg` only — that is the asset kind that lands in dist. Colors are baked (no theme switch). */
+  logoUrl?: string;
+  logoAlt?: string;
+  href?: string;
+}
+
+/** Optional actions a generated header may render (all off unless listed). */
+export type AppHeaderAction = 'language' | 'designSystem' | 'modules' | 'search' | 'user';
 
 /** Manual customization carried by the client project; composers translate these
  *  fields into the generated config.json instead of hand-editing it (the composed
