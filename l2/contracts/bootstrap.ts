@@ -113,6 +113,12 @@ export interface MasterFrontendModuleShellPreferences {
 
 export interface MasterFrontendBootConfig {
   projectId: string;
+  /**
+   * The environment mode the SERVER resolved for this project (`production | homologation | development |
+   * presentation`). The client only displays it; it never decides it. Absent on a runtime older than the
+   * modes.
+   */
+  appEnv?: string;
   moduleId: string;
   basePath: string;
   shellMode: MasterFrontendShellMode;

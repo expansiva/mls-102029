@@ -55,13 +55,54 @@ declare global {
   }
 }
 
-let _userId = 'anonymous';
+/**
+ * The logged user's EMAIL travels in `meta.userId` — the standard, because a display name is not unique
+ * (decision of 2026-08-18). It is TELEMETRY: the server never authorizes by it (it discards the identity
+ * fields of the meta on the http transport), so a wrong value costs an audit trail, never a permission.
+ *
+ * Read from the session cookie at REQUEST time rather than pushed in at boot: the runtime writes
+ * `loginUser` (the email of the verified JWT) when the collab-auth login returns, which can happen after
+ * the app mounted — a value captured at boot would stay stale, and every page reaches this client
+ * directly, with nobody in between to refresh it. `setUserId` remains the explicit override for a host
+ * that knows better (the Studio, a test).
+ */
+const SESSION_USER_COOKIE = 'loginUser';
+let _userId = '';
+
+function sessionUser(): string {
+  try {
+    const cookie = typeof document === 'undefined' ? '' : document.cookie;
+    const match = new RegExp(`(?:^|;\\s*)${SESSION_USER_COOKIE}=([^;]*)`, 'u').exec(cookie);
+    const value = match ? decodeURIComponent(match[1]) : '';
+    return value && value !== 'anonymous' ? value : '';
+  } catch {
+    return '';
+  }
+}
+
+/** The event the shell listens for to send the user back to the collab-auth login. */
+export const BFF_UNAUTHENTICATED_EVENT = 'collab-bff-unauthenticated';
+
+function notifyUnauthenticated(routine: string): void {
+  try {
+    const target = typeof window === 'undefined' ? undefined : window;
+    target?.dispatchEvent(new CustomEvent(BFF_UNAUTHENTICATED_EVENT, { detail: { routine } }));
+  } catch {
+    // best-effort: a host without CustomEvent still gets the normalized error above
+  }
+}
+
+/** The identity to report: an explicit override wins, then the session cookie, then anonymous. */
+function currentUserId(): string {
+  return _userId || sessionUser() || 'anonymous';
+}
 let importedTransportUrl: string | null = null;
 let importedTransport: Promise<BffDirectTransport> | null = null;
 
+/** Explicit override (email). Empty string clears it and the session cookie takes over again. */
 export function setUserId(id: string): void {
   _userId = id;
-  telemetryQueue.setUserId(id);
+  telemetryQueue.setUserId(id || currentUserId());
 }
 
 export function pushTelemetry(event: ClientTelemetryEvent): void {
@@ -151,7 +192,7 @@ function createRequest(
     params,
     meta: {
       source,
-      userId: _userId,
+      userId: currentUserId(),
       telemetry: telemetryQueue.flush(),
     },
   };
@@ -243,6 +284,22 @@ export async function execBff<TData = unknown>(
 
     if (!response.ok) {
       traceLazy('request.httpError', { routine, status: response.status });
+      if (response.status === 401) {
+        // The session died (or never existed). This client cannot log anyone in — the token lives in an
+        // httpOnly cookie only the runtime writes — so it ANNOUNCES it and lets the shell drive the
+        // redirect to collab-auth. Announced once per request, never a redirect from here: a library
+        // navigating the page out from under the app would be the wrong owner for that decision.
+        notifyUnauthenticated(routine);
+        return {
+          ok: false,
+          data: null,
+          error: {
+            code: 'UNAUTHENTICATED',
+            message: 'Sessao expirada. Entre novamente.',
+            details: bodyText.slice(0, 300),
+          },
+        };
+      }
       return {
         ok: false,
         data: null,
