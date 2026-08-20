@@ -212,7 +212,13 @@ export interface L5Layout {
 export interface AppHeaderBrand {
   title: string;
   subtitle?: string;
-  /** `.svg` only — that is the asset kind that lands in dist. */
+  /**
+   * Inline SVG markup of the mark (what agentGenerateLogo writes). Preferred over `logoUrl`: an
+   * inlined mark inherits `currentColor`, so it follows the design system in light and dark, which
+   * an `<img src="*.svg">` cannot do (an external SVG never sees the page's CSS).
+   */
+  logoSvg?: string;
+  /** `.svg` only — that is the asset kind that lands in dist. Colors are baked (no theme switch). */
   logoUrl?: string;
   logoAlt?: string;
   href?: string;
