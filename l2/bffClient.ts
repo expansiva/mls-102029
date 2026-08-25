@@ -224,6 +224,27 @@ function withAbort<TValue>(operation: Promise<TValue>, signal: AbortSignal): Pro
   });
 }
 
+function parseBffEnvelope<TData>(bodyText: string): BffClientResponse<TData> | null {
+  try {
+    const parsed = JSON.parse(bodyText) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    if (typeof (parsed as { ok?: unknown }).ok !== 'boolean') return null;
+    return parsed as BffClientResponse<TData>;
+  } catch {
+    return null;
+  }
+}
+
+function httpTransportError(status: number, bodyText: string): MasterFrontendNormalizedError {
+  return {
+    code: `HTTP_${status}`,
+    message: status === 404
+      ? 'Rotina ou servico nao encontrado (404).'
+      : `Erro do servidor (${status}).`,
+    details: bodyText.slice(0, 300),
+  };
+}
+
 export async function execBff<TData = unknown>(
   routine: string,
   params: unknown,
@@ -281,6 +302,7 @@ export async function execBff<TData = unknown>(
     // when the BFF route/backend is unavailable) becomes a clean normalized error instead of
     // a "Unexpected token '<'" JSON parse exception.
     const bodyText = await response.text();
+    const envelope = parseBffEnvelope<TData>(bodyText);
 
     if (!response.ok) {
       traceLazy('request.httpError', { routine, status: response.status });
@@ -290,6 +312,12 @@ export async function execBff<TData = unknown>(
         // redirect to collab-auth. Announced once per request, never a redirect from here: a library
         // navigating the page out from under the app would be the wrong owner for that decision.
         notifyUnauthenticated(routine);
+      }
+      // Domain failures (VALIDATION_ERROR, …) travel as HTTP 4xx WITH the BFF envelope in the body.
+      // That envelope's error.message is the screen text. Replacing it with "Erro do servidor (400)"
+      // threw the real message away and left only the status.
+      if (envelope) return envelope;
+      if (response.status === 401) {
         return {
           ok: false,
           data: null,
@@ -303,30 +331,21 @@ export async function execBff<TData = unknown>(
       return {
         ok: false,
         data: null,
-        error: {
-          code: `HTTP_${response.status}`,
-          message: response.status === 404
-            ? 'Rotina ou servico nao encontrado (404).'
-            : `Erro do servidor (${response.status}).`,
-          details: bodyText.slice(0, 300),
-        },
+        error: httpTransportError(response.status, bodyText),
       };
     }
 
-    try {
-      return JSON.parse(bodyText) as BffClientResponse<TData>;
-    } catch {
-      traceLazy('request.badResponse', { routine });
-      return {
-        ok: false,
-        data: null,
-        error: {
-          code: 'BAD_RESPONSE',
-          message: 'Resposta invalida do servidor (nao-JSON).',
-          details: bodyText.slice(0, 300),
-        },
-      };
-    }
+    if (envelope) return envelope;
+    traceLazy('request.badResponse', { routine });
+    return {
+      ok: false,
+      data: null,
+      error: {
+        code: 'BAD_RESPONSE',
+        message: 'Resposta invalida do servidor (nao-JSON).',
+        details: bodyText.slice(0, 300),
+      },
+    };
   } catch (error) {
     if (signal.aborted) {
       traceLazy('request.timeout', {
