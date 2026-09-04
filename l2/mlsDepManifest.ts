@@ -1,7 +1,9 @@
 /// <mls fileReference="_102029_/l2/mlsDepManifest.ts" enhancement="_blank"/>
 
 // Commitable build-CI manifest at the client project root (`mlsDep.json`).
-// workspaceDependencies = l5/config.json workspaceDependencies ∪ masters.*.runtimeProject.
+// workspaceDependencies = l5/config.json workspaceDependencies
+//   ∪ masters.*.runtimeProject
+//   ∪ Studio (100554/100555).
 // One derivation; CB and CF both call it when they merge l5/config.json.
 
 export interface MlsDepManifest {
@@ -23,7 +25,14 @@ function projectId(value: unknown): string {
   return '';
 }
 
-/** Sorted unique ids: the l5/config.json list plus each master's runtimeProject. */
+// Studio core (100554) and plugins (100555). Studio mode is a runtime capability
+// (opt-in at execution time), not an app-owned dependency — so it joins the
+// client closure here, the same way runtimeProject does. Do not add these to
+// l5/config.json.workspaceDependencies (that list is how the host resolves an
+// agent) or to config.projects (that is what build.mjs compiles into the bundle).
+const STUDIO_WORKSPACE_IDS = ['100554', '100555'] as const;
+
+/** Sorted unique ids: l5 list ∪ each master's runtimeProject ∪ the Studio pair. */
 export function buildMlsDepWorkspaceIds(l5Config: unknown, l5Project: unknown): string[] {
   const ids = new Set<string>();
   const listed = isRecord(l5Config) ? l5Config.workspaceDependencies : undefined;
@@ -39,6 +48,7 @@ export function buildMlsDepWorkspaceIds(l5Config: unknown, l5Project: unknown): 
     const id = projectId(signature?.runtimeProject);
     if (id) ids.add(id);
   }
+  for (const id of STUDIO_WORKSPACE_IDS) ids.add(id);
   return [...ids].sort((left, right) => Number(left) - Number(right));
 }
 

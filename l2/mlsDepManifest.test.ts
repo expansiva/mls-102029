@@ -21,10 +21,10 @@ const L5_PROJECT = {
   },
 };
 
-test('mlsDep ids are the l5 list union the two runtimeProject masters', () => {
+test('mlsDep ids are the l5 list union runtimeProject masters union the Studio pair', () => {
   assert.deepEqual(
     buildMlsDepWorkspaceIds(L5_CONFIG, L5_PROJECT),
-    ['102020', '102021', '102025', '102027', '102029', '102033', '102034', '102036', '102047'],
+    ['100554', '100555', '102020', '102021', '102025', '102027', '102029', '102033', '102034', '102036', '102047'],
   );
 });
 
@@ -36,11 +36,48 @@ test('runtimeProject is added even when the l5 list omitted it', () => {
   assert.ok(ids.includes('102020'));
 });
 
-test('masters as strings and missing l5 list still emit the runtime projects', () => {
+test('masters as strings and missing l5 list still emit the runtime projects and the Studio pair', () => {
   assert.deepEqual(
     buildMlsDepWorkspaceIds({}, { masters: { frontend: { runtimeProject: '102033' }, backend: { runtimeProject: '102034' } } }),
-    ['102033', '102034'],
+    ['100554', '100555', '102033', '102034'],
   );
+});
+
+test('Studio pair is in the closure even when the l5 list never mentioned it', () => {
+  const ids = buildMlsDepWorkspaceIds(L5_CONFIG, L5_PROJECT);
+  assert.ok(ids.includes('100554'));
+  assert.ok(ids.includes('100555'));
+  assert.equal(L5_CONFIG.workspaceDependencies.includes('100554'), false);
+  assert.equal(L5_CONFIG.workspaceDependencies.includes('100555'), false);
+});
+
+test('Studio pair is not duplicated when the l5 list already declares it', () => {
+  const ids = buildMlsDepWorkspaceIds(
+    { workspaceDependencies: ['100554', '102047', '100555', '100554'] },
+    L5_PROJECT,
+  );
+  assert.equal(ids.filter((id) => id === '100554').length, 1);
+  assert.equal(ids.filter((id) => id === '100555').length, 1);
+});
+
+test('closure stays numerically sorted and has no repeats', () => {
+  const ids = buildMlsDepWorkspaceIds(
+    { workspaceDependencies: ['102047', '100555', '102020', '100554', '102047'] },
+    L5_PROJECT,
+  );
+  assert.deepEqual(ids, [...ids].sort((left, right) => Number(left) - Number(right)));
+  assert.equal(ids.length, new Set(ids).size);
+});
+
+test('Studio pair is added when workspaceDependencies is empty or absent', () => {
+  const empty = buildMlsDepWorkspaceIds({ workspaceDependencies: [] }, {});
+  const absent = buildMlsDepWorkspaceIds({}, {});
+  const missingConfig = buildMlsDepWorkspaceIds(undefined, undefined);
+  for (const ids of [empty, absent, missingConfig]) {
+    assert.ok(ids.includes('100554'));
+    assert.ok(ids.includes('100555'));
+    assert.deepEqual(ids, ['100554', '100555']);
+  }
 });
 
 test('serialize is stable: two calls with the same inputs are byte-identical', () => {
@@ -111,7 +148,7 @@ void test('emitMlsDepJsonIfHostDisk calls diskPath as a method (host class, priv
     assert.equal(wrote, true);
     assert.equal(written.length, 1);
     assert.equal(written[0]!.path, '/data/mls-base/mls-102043/mlsDep.json');
-    assert.deepEqual(JSON.parse(written[0]!.data).workspaceDependencies, ['102020', '102033', '102034', '102043']);
+    assert.deepEqual(JSON.parse(written[0]!.data).workspaceDependencies, ['100554', '100555', '102020', '102033', '102034', '102043']);
   } finally {
     g.mls = prevMls;
     g.Deno = prevDeno;
