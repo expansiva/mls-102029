@@ -128,25 +128,12 @@ export interface ProjectRuntimeMetadata {
   studioEnabled?: boolean;
 }
 
-export interface PublicationTargetConfig {
-  assetBaseUrl?: string;
-  serveStaticFromServer?: boolean;
-  minify?: boolean;
-  sourcemap?: boolean;
-}
-
-export interface PublicationConfig {
-  defaultTarget: string;
-  targets: Record<string, PublicationTargetConfig>;
-}
-
 export interface ProjectsConfig {
   defaultProjectId: string;
   shellTemplates: {
     spa: string;
     pwa: string;
   };
-  publication: PublicationConfig;
   clientShell?: ProjectClientShellConfig;
   // One 'client' entry per workspace today; the map shape already supports several
   // clients in the future (one pm2 entry per client).
@@ -232,7 +219,6 @@ export type AppHeaderAction = 'language' | 'designSystem' | 'modules' | 'search'
  *  file is overwritten on every publish). */
 export interface L5RuntimeCustomize {
   clientShell?: ProjectClientShellConfig;
-  publication?: PublicationConfig;
   shellTemplates?: { spa: string; pwa: string };
   navigationLabels?: Record<string, string>;
 }
