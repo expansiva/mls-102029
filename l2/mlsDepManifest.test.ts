@@ -21,10 +21,10 @@ const L5_PROJECT = {
   },
 };
 
-test('mlsDep ids are the l5 list union runtimeProject masters union the Studio pair', () => {
+test('mlsDep ids are the l5 list union runtimeProject masters union the Studio pair union 102041', () => {
   assert.deepEqual(
     buildMlsDepWorkspaceIds(L5_CONFIG, L5_PROJECT),
-    ['100554', '100555', '102020', '102021', '102025', '102027', '102029', '102033', '102034', '102036', '102047'],
+    ['100554', '100555', '102020', '102021', '102025', '102027', '102029', '102033', '102034', '102036', '102041', '102047'],
   );
 });
 
@@ -39,7 +39,7 @@ test('runtimeProject is added even when the l5 list omitted it', () => {
 test('masters as strings and missing l5 list still emit the runtime projects and the Studio pair', () => {
   assert.deepEqual(
     buildMlsDepWorkspaceIds({}, { masters: { frontend: { runtimeProject: '102033' }, backend: { runtimeProject: '102034' } } }),
-    ['100554', '100555', '102033', '102034'],
+    ['100554', '100555', '102033', '102034', '102041'],
   );
 });
 
@@ -76,8 +76,33 @@ test('Studio pair is added when workspaceDependencies is empty or absent', () =>
   for (const ids of [empty, absent, missingConfig]) {
     assert.ok(ids.includes('100554'));
     assert.ok(ids.includes('100555'));
+    assert.equal(ids.includes('102041'), false, '102041 follows 102033, not the empty set');
     assert.deepEqual(ids, ['100554', '100555']);
   }
+});
+
+test('102041 joins the closure when 102033 is present and stays out when it is not', () => {
+  const withFrontend = buildMlsDepWorkspaceIds(
+    { workspaceDependencies: ['102047'] },
+    L5_PROJECT,
+  );
+  assert.ok(withFrontend.includes('102033'));
+  assert.ok(withFrontend.includes('102041'));
+  assert.equal(withFrontend.filter((id) => id === '102041').length, 1);
+  const withoutFrontend = buildMlsDepWorkspaceIds(
+    { workspaceDependencies: ['102047'] },
+    { masters: { backend: { runtimeProject: 102034 } } },
+  );
+  assert.equal(withoutFrontend.includes('102033'), false);
+  assert.equal(withoutFrontend.includes('102041'), false);
+});
+
+test('102041 is not duplicated when the l5 list already declares it', () => {
+  const ids = buildMlsDepWorkspaceIds(
+    { workspaceDependencies: ['102041', '102047', '102041'] },
+    L5_PROJECT,
+  );
+  assert.equal(ids.filter((id) => id === '102041').length, 1);
 });
 
 test('serialize is stable: two calls with the same inputs are byte-identical', () => {
@@ -148,7 +173,7 @@ void test('emitMlsDepJsonIfHostDisk calls diskPath as a method (host class, priv
     assert.equal(wrote, true);
     assert.equal(written.length, 1);
     assert.equal(written[0]!.path, '/data/mls-base/mls-102043/mlsDep.json');
-    assert.deepEqual(JSON.parse(written[0]!.data).workspaceDependencies, ['100554', '100555', '102020', '102033', '102034', '102043']);
+    assert.deepEqual(JSON.parse(written[0]!.data).workspaceDependencies, ['100554', '100555', '102020', '102033', '102034', '102041', '102043']);
   } finally {
     g.mls = prevMls;
     g.Deno = prevDeno;
