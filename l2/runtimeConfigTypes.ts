@@ -135,6 +135,8 @@ export interface ProjectsConfig {
     pwa: string;
   };
   clientShell?: ProjectClientShellConfig;
+  /** Optional same-origin favicon href (`/…`). Cross-origin values are ignored. */
+  favicon?: string;
   // One 'client' entry per workspace today; the map shape already supports several
   // clients in the future (one pm2 entry per client).
   projects: Record<string, ProjectConfigRecord>;
