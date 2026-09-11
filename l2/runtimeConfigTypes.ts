@@ -128,6 +128,16 @@ export interface ProjectRuntimeMetadata {
   studioEnabled?: boolean;
 }
 
+/** Where this project is read from and saved to. Replaces the `cadastro` blob. */
+export interface ProjectSettingsConfig {
+  /** Destination: 'GitHub' | 'GitLab' | 'vm'. Routed by getDefaultDriver in the cfe. */
+  driver: string;
+  /** >= 3 '/'-separated segments: getMyKeysBranch takes the LAST three as branch/owner/repo. */
+  url: string;
+  name?: string;
+  userAuth?: 'public' | 'private';
+}
+
 export interface ProjectsConfig {
   defaultProjectId: string;
   shellTemplates: {
@@ -137,6 +147,10 @@ export interface ProjectsConfig {
   clientShell?: ProjectClientShellConfig;
   /** Optional same-origin favicon href (`/…`). Cross-origin values are ignored. */
   favicon?: string;
+  /** Destination of this project's source. Read by the runtime login from l5/config.json. */
+  projectSettings?: ProjectSettingsConfig;
+  /** Declared workspace project ids. Read by cbeLogin.readProjectDependencies. */
+  workspaceDependencies?: string[];
   // One 'client' entry per workspace today; the map shape already supports several
   // clients in the future (one pm2 entry per client).
   projects: Record<string, ProjectConfigRecord>;
@@ -227,6 +241,7 @@ export interface L5RuntimeCustomize {
 
 export interface L5ProjectJson {
   projectId?: string;
+  name?: string;
   domain?: string;
   port?: number;
   databaseName?: string;
