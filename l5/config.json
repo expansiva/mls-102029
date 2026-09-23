@@ -1,6 +1,6 @@
 {
   "projectSettings": {
-    "driver": "GitHub",
+    "driver": "vm",
     "url": "https://github.com/main/expansiva/mls-102029"
   }
 }
