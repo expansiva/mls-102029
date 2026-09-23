@@ -50,7 +50,10 @@ export type StudioRunMode = 'studio' | 'studioClient';
 
 /** Minimal read of window.collabBoot — the full shape lives in contracts/bootstrap.ts. */
 interface IStudioBootLike {
+    /** O dono do MODULO servido — pode ser o master backend numa pagina de plataforma. */
     projectId?: string | number;
+    /** O projeto CLIENTE do workspace, sempre. E' este que o studio edita. */
+    clientProjectId?: string | number;
 }
 
 /** Lowest project id the platform assigns — anything below is not a real project. */
@@ -80,12 +83,19 @@ export function isStudioClient(): boolean {
 
 /**
  * The single project the studio-client is pinned to; undefined in 'studio' mode.
- * collabBoot.projectId is authoritative (cbeMiniCfe feeds mls.setActualProject from it);
- * mls.actualProject is the fallback when the boot payload carries no usable id.
+ *
+ * `clientProjectId` first: it is the workspace's client project, which is what the studio edits.
+ * `projectId` is the owner of the SERVED MODULE, so entering through a platform module
+ * (monitor/mdm/audit, owned by the master backend) pinned the studio to the master and the client's
+ * services never appeared — measured on 102047.collabcodes.com, 23/09/2026.
+ * `projectId` stays as the fallback for a server that does not send the new field yet;
+ * mls.actualProject is the last resort when the payload carries no usable id.
  */
 export function getStudioScopeProject(): number | undefined {
     const boot = getStudioBoot();
     if (!boot) return undefined;
+    const fromClient = Number(boot.clientProjectId);
+    if (Number.isFinite(fromClient) && fromClient >= MIN_PROJECT_ID) return fromClient;
     const fromBoot = Number(boot.projectId);
     if (Number.isFinite(fromBoot) && fromBoot >= MIN_PROJECT_ID) return fromBoot;
     const fromMls = Number((globalThis as { mls?: { actualProject?: number } }).mls?.actualProject);
