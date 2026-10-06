@@ -1,5 +1,8 @@
 /// <mls fileReference="_102029_/l2/utils.ts" enhancement="_blank" />
 
+import type { MasterFrontendBootConfig } from '/_102029_/l2/contracts/bootstrap.js';
+// brings the global Window.collabBoot declaration into every program that compiles this file
+
 export function getPath(widget: string): mls.stor.IFileInfoBase | undefined {
 
     return mls.actual[0].setFullName(widget).getStorFileBase();
