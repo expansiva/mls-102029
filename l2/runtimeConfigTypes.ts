@@ -138,6 +138,16 @@ export interface ProjectSettingsConfig {
   userAuth?: 'public' | 'private';
 }
 
+/** Optional Início onboarding. Absent means the runtime does not provision an organization. */
+export interface ProjectOnboardingConfig {
+  moduleId: string;
+  entryPath: string;
+  personType: string;
+  companyType: string;
+  /** Default is the sites project file only. `development-project` is a declared dev/presentation fallback. */
+  organizationSource?: 'project-file' | 'development-project';
+}
+
 export interface ProjectsConfig {
   defaultProjectId: string;
   shellTemplates: {
@@ -151,6 +161,8 @@ export interface ProjectsConfig {
   projectSettings?: ProjectSettingsConfig;
   /** Declared workspace project ids. Read by cbeLogin.readProjectDependencies. */
   workspaceDependencies?: string[];
+  /** Absent keeps organization bootstrap off. Tags are supplied by the module, not fixed in the library. */
+  onboarding?: ProjectOnboardingConfig;
   // One 'client' entry per workspace today; the map shape already supports several
   // clients in the future (one pm2 entry per client).
   projects: Record<string, ProjectConfigRecord>;
