@@ -136,6 +136,11 @@ export interface MasterFrontendBootConfig {
   moduleLinks?: ProjectNavigationEntry[];
   layout: MasterFrontendLayoutConfig;
   clientShell?: MasterFrontendClientShellConfig;
+  /** Present only when server onboarding is enabled. Paths belong to the client module, not the page being served. */
+  onboarding?: {
+    entryPath: string;
+    moduleBasePath: string;
+  };
 }
 
 export type MasterFrontendInteractionMode = 'blocking' | 'silent';
