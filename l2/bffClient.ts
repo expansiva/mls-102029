@@ -15,6 +15,7 @@ export interface BffClientOptions {
   mode?: MasterFrontendInteractionMode;
   timeoutMs?: number;
   signal?: AbortSignal;
+  requestId?: string;
 }
 
 export interface BffClientResponse<TData = unknown> {
@@ -31,6 +32,7 @@ export interface BffClientRequest {
     source: 'http' | 'test';
     userId: string;
     telemetry: ClientTelemetryEvent[];
+    requestId?: string;
   };
 }
 
@@ -186,15 +188,21 @@ function createRequest(
   routine: string,
   params: unknown,
   source: BffClientRequest['meta']['source'],
+  options: BffClientOptions = {},
 ): BffClientRequest {
+  const meta: BffClientRequest['meta'] = {
+    source,
+    userId: currentUserId(),
+    telemetry: telemetryQueue.flush(),
+  };
+  const requestId = options.requestId;
+  if (typeof requestId === 'string' && requestId.trim() !== '') {
+    meta.requestId = requestId;
+  }
   return {
     routine,
     params,
-    meta: {
-      source,
-      userId: currentUserId(),
-      telemetry: telemetryQueue.flush(),
-    },
+    meta,
   };
 }
 
@@ -272,7 +280,7 @@ export async function execBff<TData = unknown>(
         routine,
       });
       const result = await withAbort(
-        directTransport.execBff<TData>(createRequest(routine, params, 'test'), {
+        directTransport.execBff<TData>(createRequest(routine, params, 'test', options), {
           ...options,
           signal,
         }),
@@ -289,7 +297,7 @@ export async function execBff<TData = unknown>(
       headers: {
         'content-type': 'application/json',
       },
-      body: JSON.stringify(createRequest(routine, params, 'http')),
+      body: JSON.stringify(createRequest(routine, params, 'http', options)),
       signal,
     });
 

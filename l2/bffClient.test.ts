@@ -85,3 +85,67 @@ test('a login that happens after the app mounted is picked up by the next reques
   await client.execBff('x.y.z', {});
   assert.equal(afterLogin.sent[0].meta.userId, 'late@collab.codes');
 });
+
+test('requestId is forwarded as given on direct transport and omitted when blank', async () => {
+  const prior = g.collabBffTransport;
+  try {
+    const capture = installCapture();
+    const client = await loadClient();
+    const key = 'sub-abc-001';
+
+    await client.execBff('x.y.z', { n: 1 }, { requestId: key });
+    await client.execBff('x.y.z', { n: 1 }, { requestId: key });
+    await client.execBff('x.y.z', { n: 2 }, { requestId: 'sub-abc-002' });
+    await client.execBff('x.y.z', { n: 3 });
+    await client.execBff('x.y.z', { n: 4 }, { requestId: '   ' });
+    await client.execBff('x.y.z', { n: 5 }, { requestId: '' });
+
+    assert.equal(capture.sent.length, 6);
+    assert.equal(capture.sent[0].meta.requestId, key);
+    assert.equal(capture.sent[1].meta.requestId, key);
+    assert.equal(capture.sent[2].meta.requestId, 'sub-abc-002');
+    assert.equal('requestId' in capture.sent[3].meta, false);
+    assert.equal('requestId' in capture.sent[4].meta, false);
+    assert.equal('requestId' in capture.sent[5].meta, false);
+    assert.deepEqual(capture.sent[0].params, { n: 1 });
+  } finally {
+    g.collabBffTransport = prior;
+  }
+});
+
+test('requestId is forwarded as given on HTTP fetch and omitted when blank', async () => {
+  const priorTransport = g.collabBffTransport;
+  const priorFetch = g.fetch;
+  const bodies: any[] = [];
+  g.collabBffTransport = undefined;
+  if (g.window) g.window.collabBffTransport = undefined;
+  g.fetch = async (_url: string, init?: { body?: string }) => {
+    bodies.push(JSON.parse(String(init?.body ?? '{}')));
+    return {
+      status: 200,
+      ok: true,
+      text: async () => '{"ok":true,"data":null,"error":null}',
+    };
+  };
+  try {
+    const client = await loadClient();
+    const key = 'sub-http-001';
+
+    await client.execBff('x.y.z', { n: 1 }, { requestId: key });
+    await client.execBff('x.y.z', { n: 1 }, { requestId: key });
+    await client.execBff('x.y.z', { n: 2 }, { requestId: 'sub-http-002' });
+    await client.execBff('x.y.z', { n: 3 });
+    await client.execBff('x.y.z', { n: 4 }, { requestId: '   ' });
+
+    assert.equal(bodies.length, 5);
+    assert.equal(bodies[0].meta.source, 'http');
+    assert.equal(bodies[0].meta.requestId, key);
+    assert.equal(bodies[1].meta.requestId, key);
+    assert.equal(bodies[2].meta.requestId, 'sub-http-002');
+    assert.equal('requestId' in bodies[3].meta, false);
+    assert.equal('requestId' in bodies[4].meta, false);
+  } finally {
+    g.collabBffTransport = priorTransport;
+    g.fetch = priorFetch;
+  }
+});
