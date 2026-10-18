@@ -146,6 +146,8 @@ export interface ProjectOnboardingConfig {
   companyType: string;
   /** Default is the sites project file only. `development-project` is a declared dev/presentation fallback. */
   organizationSource?: 'project-file' | 'development-project';
+  /** Automatic entry into cadastro. Absent equals true. false keeps provisioning and does not redirect. */
+  redirect?: boolean;
 }
 
 export interface ProjectsConfig {
