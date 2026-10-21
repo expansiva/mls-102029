@@ -138,16 +138,24 @@ export interface ProjectSettingsConfig {
   userAuth?: 'public' | 'private';
 }
 
-/** Optional Início onboarding. Absent means the runtime does not provision an organization. */
+/** Optional cadastro module. It does not decide whether the organization exists. */
 export interface ProjectOnboardingConfig {
   moduleId: string;
   entryPath: string;
   personType: string;
   companyType: string;
-  /** Default is the sites project file only. `development-project` is a declared dev/presentation fallback. */
+  /**
+   * Transitional. Prefer `ProjectsConfig.organization.source`.
+   * Used only when `organization` itself was omitted. Ignored when that field is set.
+   */
   organizationSource?: 'project-file' | 'development-project';
   /** Automatic entry into cadastro. Absent equals true. false keeps provisioning and does not redirect. */
   redirect?: boolean;
+}
+
+/** Organization identity source. Independent of the cadastro module. Absent `source` means project-file. */
+export interface ProjectOrganizationConfig {
+  source?: 'project-file' | 'development-project';
 }
 
 export interface ProjectsConfig {
@@ -163,7 +171,12 @@ export interface ProjectsConfig {
   projectSettings?: ProjectSettingsConfig;
   /** Declared workspace project ids. Read by cbeLogin.readProjectDependencies. */
   workspaceDependencies?: string[];
-  /** Absent keeps organization bootstrap off. Tags are supplied by the module, not fixed in the library. */
+  /**
+   * Organization identity source. Absent `organization` keeps the transitional onboarding.organizationSource.
+   * A valid sites project file still wins over either source.
+   */
+  organization?: ProjectOrganizationConfig;
+  /** Cadastro module tags. Supplied by the module, not fixed in the library. Does not gate organization identity. */
   onboarding?: ProjectOnboardingConfig;
   // One 'client' entry per workspace today; the map shape already supports several
   // clients in the future (one pm2 entry per client).
