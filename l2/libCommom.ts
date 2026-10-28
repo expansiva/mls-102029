@@ -354,7 +354,7 @@ export async function loadFileHTMLInContainer(el: HTMLElement, shortName: string
             const script = document.createElement('script');
             script.type = 'module';
             script.id = info.shortName;
-            script.src = (`/_${info.project}_${info.shortName}`);
+            script.src = (`/_${info.project}_/l2/${info.folder ? info.folder + '/' : ''}${info.shortName}`);
             el.appendChild(script)
         }
     });
