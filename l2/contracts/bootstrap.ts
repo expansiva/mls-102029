@@ -182,6 +182,10 @@ declare global {
       closeTab: (id: string) => void;
       activateTab: (id: string) => void;
       listTabs: () => string[];
+      /** Id of the tab the bar is showing (`app` or `mod-<basePath>`). */
+      activeTab: () => string;
+      togglePin: (id: string) => void;
+      isPinned: (id: string) => boolean;
     };
   }
 
