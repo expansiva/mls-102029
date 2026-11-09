@@ -253,6 +253,69 @@ function httpTransportError(status: number, bodyText: string): MasterFrontendNor
   };
 }
 
+/** Same resolution as `getMessageKey`: `mls.sites.getLanguage()`, then `documentElement.lang`, then `en`. */
+const DRAFT_FORBIDDEN_MESSAGES = {
+  en: 'This draft is not yours. Enter Studio mode again to use yours.',
+  pt: 'Este rascunho não é seu. Entre no modo Studio de novo para usar o seu.',
+  es: 'Este borrador no es tuyo. Entra de nuevo en el modo Studio para usar el tuyo.',
+} as const;
+
+type DraftForbiddenLang = keyof typeof DRAFT_FORBIDDEN_MESSAGES;
+
+function draftForbiddenMessage(): string {
+  const keys = Object.keys(DRAFT_FORBIDDEN_MESSAGES) as DraftForbiddenLang[];
+  const firstKey = keys[0];
+  let lang = '';
+  try {
+    const sitesLang = (globalThis as {
+      mls?: { sites?: { getLanguage?: () => string | undefined } };
+    }).mls?.sites?.getLanguage?.();
+    const documentLang = typeof document === 'undefined' ? '' : document.documentElement?.lang;
+    lang = String(sitesLang || documentLang || '').toLowerCase();
+  } catch (error) {
+    console.error('[bff-client] draft forbidden language lookup failed', error);
+  }
+  if (!lang) return DRAFT_FORBIDDEN_MESSAGES[firstKey];
+  if (Object.prototype.hasOwnProperty.call(DRAFT_FORBIDDEN_MESSAGES, lang)) {
+    return DRAFT_FORBIDDEN_MESSAGES[lang as DraftForbiddenLang];
+  }
+  const similar = keys.find((key) => lang.substring(0, 2) === key);
+  return DRAFT_FORBIDDEN_MESSAGES[similar ?? firstKey];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Envelope `error.code`, or the same code on a runtime body that is not a BFF envelope. */
+function isDraftForbidden(bodyText: string, envelope: BffClientResponse | null): boolean {
+  if (envelope?.error?.code === 'DRAFT_FORBIDDEN') return true;
+  const trimmed = bodyText.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!isRecord(parsed)) return false;
+    if (parsed.code === 'DRAFT_FORBIDDEN') return true;
+    if (parsed.error === 'DRAFT_FORBIDDEN') return true;
+    return isRecord(parsed.error) && parsed.error.code === 'DRAFT_FORBIDDEN';
+  } catch (error) {
+    console.error('[bff-client] 403 body looked like JSON but did not parse', error);
+    return false;
+  }
+}
+
+function draftForbiddenResponse<TData>(bodyText: string): BffClientResponse<TData> {
+  return {
+    ok: false,
+    data: null,
+    error: {
+      code: 'DRAFT_FORBIDDEN',
+      message: draftForbiddenMessage(),
+      details: bodyText.slice(0, 300),
+    },
+  };
+}
+
 export async function execBff<TData = unknown>(
   routine: string,
   params: unknown,
@@ -320,6 +383,11 @@ export async function execBff<TData = unknown>(
         // redirect to collab-auth. Announced once per request, never a redirect from here: a library
         // navigating the page out from under the app would be the wrong owner for that decision.
         notifyUnauthenticated(routine);
+      }
+      // Someone else's draft is a 403, not a dead session. Say so in the active language and do not
+      // announce a login. Any other 403 keeps the envelope or the generic transport error below.
+      if (response.status === 403 && isDraftForbidden(bodyText, envelope)) {
+        return draftForbiddenResponse<TData>(bodyText);
       }
       // Domain failures (VALIDATION_ERROR, …) travel as HTTP 4xx WITH the BFF envelope in the body.
       // That envelope's error.message is the screen text. Replacing it with "Erro do servidor (400)"

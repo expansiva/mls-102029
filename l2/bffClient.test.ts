@@ -149,3 +149,119 @@ test('requestId is forwarded as given on HTTP fetch and omitted when blank', asy
     g.fetch = priorFetch;
   }
 });
+
+const DRAFT_FORBIDDEN_PT = 'Este rascunho não é seu. Entre no modo Studio de novo para usar o seu.';
+const DRAFT_FORBIDDEN_EN = 'This draft is not yours. Enter Studio mode again to use yours.';
+const DRAFT_FORBIDDEN_ES = 'Este borrador no es tuyo. Entra de nuevo en el modo Studio para usar el tuyo.';
+
+function installHttp(status: number, body: string): { events: Array<{ type: string; detail?: { routine?: string } }> } {
+  const events: Array<{ type: string; detail?: { routine?: string } }> = [];
+  g.collabBffTransport = undefined;
+  if (g.window) g.window.collabBffTransport = undefined;
+  g.window = {
+    dispatchEvent(event: { type: string; detail?: { routine?: string } }) {
+      events.push(event);
+      return true;
+    },
+  };
+  g.fetch = async () => ({
+    status,
+    ok: status >= 200 && status < 300,
+    text: async () => body,
+  });
+  return { events };
+}
+
+test('403 DRAFT_FORBIDDEN becomes the i18n phrase and does not announce login', async () => {
+  const priorWindow = g.window;
+  const priorFetch = g.fetch;
+  const priorMls = g.mls;
+  try {
+    const envelope = JSON.stringify({
+      ok: false,
+      data: null,
+      error: { code: 'DRAFT_FORBIDDEN', message: 'This draft is not yours to use.' },
+    });
+    g.document = { cookie: '', documentElement: { lang: 'pt-BR' } };
+    const pt = installHttp(403, envelope);
+    const client = await loadClient();
+    const result = await client.execBff('studio.draft.read', {});
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, 'DRAFT_FORBIDDEN');
+    assert.equal(result.error.message, DRAFT_FORBIDDEN_PT);
+    assert.equal(pt.events.length, 0);
+
+    g.document = { cookie: '', documentElement: { lang: 'en' } };
+    const en = installHttp(403, envelope);
+    const inEnglish = await client.execBff('studio.draft.read', {});
+    assert.equal(inEnglish.error.message, DRAFT_FORBIDDEN_EN);
+    assert.equal(en.events.length, 0);
+
+    g.mls = { sites: { getLanguage: () => 'es' } };
+    g.document = { cookie: '', documentElement: { lang: 'en' } };
+    const es = installHttp(403, JSON.stringify({ code: 'DRAFT_FORBIDDEN' }));
+    const inSpanish = await client.execBff('studio.draft.read', {});
+    assert.equal(inSpanish.error.code, 'DRAFT_FORBIDDEN');
+    assert.equal(inSpanish.error.message, DRAFT_FORBIDDEN_ES);
+    assert.equal(es.events.length, 0);
+
+    g.mls = { sites: undefined };
+    g.document = { cookie: '' };
+    const fallbackHttp = installHttp(403, JSON.stringify({ error: { code: 'DRAFT_FORBIDDEN' } }));
+    const fallback = await client.execBff('studio.draft.read', {});
+    assert.equal(fallback.error.message, DRAFT_FORBIDDEN_EN);
+    assert.equal(fallbackHttp.events.length, 0);
+  } finally {
+    g.window = priorWindow;
+    g.fetch = priorFetch;
+    g.collabBffTransport = priorTransport;
+    if (priorMls) g.mls = priorMls; else delete g.mls;
+  }
+});
+
+test('401 still announces login', async () => {
+  const priorWindow = g.window;
+  const priorFetch = g.fetch;
+  try {
+    const http = installHttp(401, 'expired');
+    const client = await loadClient();
+    const result = await client.execBff('studio.draft.read', {});
+    assert.equal(result.error.code, 'UNAUTHENTICATED');
+    assert.equal(result.error.message, 'Sessao expirada. Entre novamente.');
+    assert.equal(http.events.length, 1);
+    assert.equal(http.events[0].type, 'collab-bff-unauthenticated');
+    assert.equal(http.events[0].detail?.routine, 'studio.draft.read');
+  } finally {
+    g.window = priorWindow;
+    g.fetch = priorFetch;
+    g.collabBffTransport = priorTransport;
+  }
+});
+
+test('a 403 that is not DRAFT_FORBIDDEN stays the transport error or the envelope', async () => {
+  const priorWindow = g.window;
+  const priorFetch = g.fetch;
+  try {
+    const plain = installHttp(403, 'nope');
+    const client = await loadClient();
+    const transport = await client.execBff('studio.draft.read', {});
+    assert.equal(transport.error.code, 'HTTP_403');
+    assert.equal(transport.error.message, 'Erro do servidor (403).');
+    assert.equal(plain.events.length, 0);
+
+    const envelope = {
+      ok: false,
+      data: null,
+      error: { code: 'VALIDATION_ERROR', message: 'Campo obrigatório' },
+    };
+    const other = installHttp(403, JSON.stringify(envelope));
+    const kept = await client.execBff('studio.draft.read', {});
+    assert.equal(kept.error.code, 'VALIDATION_ERROR');
+    assert.equal(kept.error.message, 'Campo obrigatório');
+    assert.equal(other.events.length, 0);
+  } finally {
+    g.window = priorWindow;
+    g.fetch = priorFetch;
+    g.collabBffTransport = priorTransport;
+  }
+});
