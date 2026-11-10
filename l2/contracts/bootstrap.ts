@@ -184,6 +184,12 @@ declare global {
       listTabs: () => string[];
       /** Id of the tab the bar is showing (`app` or `mod-<basePath>`). */
       activeTab: () => string;
+      /**
+       * The element hosted by the tab on screen (an HTMLElement; typed unknown like `openTab`): the app region host
+       * for `app`, the element given to `openTab` otherwise. Null while it is not rendered yet. A change of tab is
+       * announced on window as `collab-nav3-tab-change`.
+       */
+      activeTabElement?: () => unknown;
       togglePin: (id: string) => void;
       isPinned: (id: string) => boolean;
     };
