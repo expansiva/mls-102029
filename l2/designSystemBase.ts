@@ -55,6 +55,12 @@ export interface IDesignSystemTokens {
   dsIndex?: string;
   /** Molecule-token reconciliation (`--ml-*` → `--ds-*`), applied by the render into `:root`. */
   tokenReconciliation?: DsTokenReconciliation;
+  /**
+   * Token values for ONE kind of molecule: molecule tag (`groupentertext--ml-address-field`) → keys,
+   * `_dark-<key>` for the dark value. Declared on the molecule's own element, so they win over the
+   * `:root` value for that molecule (and what it holds) only.
+   */
+  components?: Record<string, IKeyValueToken>;
 }
 
 export interface IDesignSystem {
@@ -122,8 +128,43 @@ export function tokensCssFromTheme(tokenInfo: IDesignSystemTokens): string {
   const tokensCss = convertLessTokensToCss(cssVars, themedTokens.root);
 
   const fontLoads = getFontLoadsCss(tokenInfo.fonts);
+  const componentsCss = getComponentTokensCss(tokenInfo.components);
   const mlTokensCss = getMlTokensCss(tokenInfo.tokenReconciliation);
-  return [fontLoads, tokensCss, mlTokensCss].filter(Boolean).join('\n');
+  return [fontLoads, tokensCss, componentsCss, mlTokensCss].filter(Boolean).join('\n');
+}
+
+const MOLECULE_TAG = /^group[a-z0-9]+--ml-[a-z0-9-]+$/;
+const TOKEN_KEY = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * Per-molecule token blocks: `:root <tag> { --key: value; }` for the light keys and
+ * `[data-theme="dark"] <tag>, :root.dark <tag> { … }` for the `_dark-` ones. Molecules only READ
+ * their tokens, so a declaration on the element wins over the inherited `:root` value. A tag that
+ * is not a molecule tag, a malformed key and an empty value are skipped — a bad entry never breaks
+ * the stylesheet of the app.
+ *
+ * @param components - The entry's `components`; absent/empty yields an empty string.
+ * @returns The blocks, tags in alphabetical order, or an empty string.
+ */
+export function getComponentTokensCss(components?: Record<string, IKeyValueToken>): string {
+  if (!components || typeof components !== 'object') return '';
+  const blocks: string[] = [];
+  for (const tag of Object.keys(components).sort()) {
+    const keys = components[tag];
+    if (!MOLECULE_TAG.test(tag) || !keys || typeof keys !== 'object') continue;
+    const light: string[] = [];
+    const dark: string[] = [];
+    for (const [rawKey, rawValue] of Object.entries(keys)) {
+      const value = typeof rawValue === 'string' ? rawValue.trim() : '';
+      const isDark = rawKey.startsWith('_dark-');
+      const key = isDark ? rawKey.slice('_dark-'.length) : rawKey;
+      if (!value || !TOKEN_KEY.test(key) || value.includes('}') || value.includes(';')) continue;
+      (isDark ? dark : light).push(`\t--${key}: ${value};`);
+    }
+    if (light.length) blocks.push(`:root ${tag}{\n${light.join('\n')}\n}`);
+    if (dark.length) blocks.push(`[data-theme="dark"] ${tag}, :root.dark ${tag}{\n${dark.join('\n')}\n}`);
+  }
+  return blocks.join('\n');
 }
 
 /**
