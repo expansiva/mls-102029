@@ -48,3 +48,9 @@ test('tokensCssFromTheme: component blocks come after the :root and dark blocks'
   assert.ok(root >= 0 && dark > root && comp > dark, css);
   assert.match(css, /--ml-border-width: 1px;/);   // the value for everyone stays on :root
 });
+
+test('tokensCssFromTheme: a leftover tokenReconciliation is ignored (same css as without it)', () => {
+  const legacy = { ...BASE, tokenReconciliation: { version: 'x', map: { 'ml-primary': 'var(--primary-bg)' }, pinned: { 'ml-border-width': '3px' } } };
+  assert.equal(tokensCssFromTheme(legacy), tokensCssFromTheme(BASE));
+  assert.doesNotMatch(tokensCssFromTheme(legacy), /--ml-primary:/);
+});
