@@ -7,7 +7,8 @@ import type {
 } from '/_102029_/l2/contracts/bootstrap.js';
 
 const DIMMED_DELAY_MS = 600;
-const DEFAULT_TIMEOUT_MS = 10000;
+// Same value as DEFAULT_BLOCKING_TIMEOUT_MS in bffClient.ts: this timer only runs in blocking mode (silent returns above).
+const DEFAULT_TIMEOUT_MS = 30000;
 
 function traceLazy(event: string, details?: Record<string, unknown>) {
   if (!globalThis.window || !window.isTraceLazy) {

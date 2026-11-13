@@ -112,6 +112,10 @@ export function pushTelemetry(event: ClientTelemetryEvent): void {
 }
 
 const DEFAULT_TIMEOUT_MS = 10000;
+// A blocking call is an action the person waits on (a command with effect): giving up at 10 s left the
+// server finishing it while the screen said timeout, and the person repeated it. Keep in step with
+// interactionRuntime.ts, which wraps the same call and must not cut before this does.
+const DEFAULT_BLOCKING_TIMEOUT_MS = 30000;
 
 function getBffHost() {
   return globalThis as typeof globalThis & {
@@ -322,9 +326,10 @@ export async function execBff<TData = unknown>(
   options: BffClientOptions = {},
 ): Promise<BffClientResponse<TData>> {
   const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? (options.mode === 'blocking' ? DEFAULT_BLOCKING_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
   const cleanupTimeout = globalThis.setTimeout(() => {
     controller.abort(new Error('TIMEOUT'));
-  }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  }, timeoutMs);
 
   const signal = options.signal
     ? AbortSignal.any([controller.signal, options.signal])
@@ -333,7 +338,7 @@ export async function execBff<TData = unknown>(
   try {
     traceLazy('request.start', {
       routine,
-      timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      timeoutMs,
       mode: options.mode ?? 'silent',
     });
 

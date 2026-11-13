@@ -7,7 +7,7 @@
 // It is TELEMETRY, never authorization: the server discards the identity fields of the meta on the http
 // transport, so a wrong value here costs a trail, never a permission.
 
-import test, { after } from 'node:test';
+import test, { after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 const g = globalThis as unknown as Record<string, any>;
@@ -265,3 +265,90 @@ test('a 403 that is not DRAFT_FORBIDDEN stays the transport error or the envelop
     g.collabBffTransport = priorTransport;
   }
 });
+
+// d2_176 — a command the person waits on (mode 'blocking') waits 30 s; a silent query still gives up at 10 s.
+// A slow server (12 s) used to make the screen say TIMEOUT while the command finished, and people repeated it.
+// Fake timers: the transport answers "12 s" later without the test waiting for it.
+function installSlowTransport(answerAfterMs: number): void {
+  g.collabBffTransport = {
+    execBff: (_request: any, options: any) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve({ response: { ok: true, data: 'done', error: null }, statusCode: 200 }), answerAfterMs);
+      options?.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(options.signal.reason); }, { once: true });
+    }),
+  };
+}
+
+async function settle(): Promise<void> {
+  for (let i = 0; i < 20; i += 1) await Promise.resolve();
+}
+
+test('execBff: blocking waits past 10 s, silent gives up at 10 s, explicit timeoutMs wins', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const client = await loadClient();
+    installSlowTransport(12000);
+
+    const blocking = client.execBff('x.y.cmd', {}, { mode: 'blocking' });
+    const silent = client.execBff('x.y.qry', {}, { mode: 'silent' });
+    const bare = client.execBff('x.y.qry', {});
+    const explicit = client.execBff('x.y.cmd', {}, { mode: 'blocking', timeoutMs: 5000 });
+    await settle();
+    mock.timers.tick(10000);
+    await settle();
+    for (const early of [silent, bare, explicit]) {
+      const response = await early;
+      assert.equal(response.ok, false);
+      assert.equal(response.error.code, 'TIMEOUT');
+    }
+    mock.timers.tick(2000);
+    await settle();
+    const response = await blocking;
+    assert.equal(response.ok, true);
+    assert.equal(response.data, 'done');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('execBff: blocking still gives up at 30 s', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const client = await loadClient();
+    installSlowTransport(40000);
+    const blocking = client.execBff('x.y.cmd', {}, { mode: 'blocking' });
+    await settle();
+    let settled = false;
+    void blocking.then(() => { settled = true; });
+    mock.timers.tick(29999);
+    await settle();
+    assert.equal(settled, false);
+    mock.timers.tick(1);
+    await settle();
+    const response = await blocking;
+    assert.equal(response.ok, false);
+    assert.equal(response.error.code, 'TIMEOUT');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('runBlockingUiAction and execBff agree: a blocking command answered at 12 s is not cut by either', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const client = await loadClient();
+    const runtime: any = await import('/_102029_/l2/interactionRuntime.js');
+    installSlowTransport(12000);
+
+    const run = runtime.runBlockingUiAction((signal: AbortSignal) => client.execBff('x.y.cmd', {}, { mode: 'blocking', signal }));
+    await settle();
+    mock.timers.tick(10000);
+    await settle();
+    mock.timers.tick(2000);
+    await settle();
+    const response = await run;
+    assert.equal(response.data, 'done');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
