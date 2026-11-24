@@ -160,6 +160,15 @@ function googleImportUrl(family: string, weights?: number[]): string {
   return `https://fonts.googleapis.com/css2?family=${fam}${w}&display=swap`;
 }
 
+const FONT_FORMATS: Record<string, string> = { '.woff2': 'woff2', '.woff': 'woff', '.ttf': 'truetype', '.otf': 'opentype' };
+
+/** The `format()` hint of a font file, by its extension; '' when unknown (the browser sniffs it). */
+export function fontFormatOf(src: string): string {
+  const path = src.replace(/[?#].*$/u, '').toLowerCase();
+  const dot = path.lastIndexOf('.');
+  return dot < 0 ? '' : FONT_FORMATS[path.slice(dot)] ?? '';
+}
+
 /**
  * Font-loading CSS for one theme: `@import` lines (google + custom URLs) and
  * `@font-face` blocks (custom self-hosted sources). Must come before every other
@@ -180,7 +189,8 @@ export function getFontLoadsCss(fonts?: DsFont[]): string {
       if (f.url) imports.add(f.url);
       for (const face of f.faces ?? []) {
         if (!face?.src) continue;
-        const parts = [`font-family: '${f.family}';`, `src: url('${face.src}') format('woff2');`];
+        const format = fontFormatOf(face.src);
+        const parts = [`font-family: '${f.family}';`, `src: url('${face.src}')${format ? ` format('${format}')` : ''};`];
         if (face.weight) parts.push(`font-weight: ${face.weight};`);
         if (face.style) parts.push(`font-style: ${face.style};`);
         faces.push(`@font-face { ${parts.join(' ')} }`);

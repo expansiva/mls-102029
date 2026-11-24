@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getComponentTokensCss, tokensCssFromTheme, type IDesignSystemTokens } from './designSystemBase.js';
+import { fontFormatOf, getComponentTokensCss, getFontLoadsCss, tokensCssFromTheme, type IDesignSystemTokens } from './designSystemBase.js';
 
 const BASE: IDesignSystemTokens = {
   themeName: 'Default',
@@ -53,4 +53,25 @@ test('tokensCssFromTheme: a leftover tokenReconciliation is ignored (same css as
   const legacy = { ...BASE, tokenReconciliation: { version: 'x', map: { 'ml-primary': 'var(--primary-bg)' }, pinned: { 'ml-border-width': '3px' } } };
   assert.equal(tokensCssFromTheme(legacy), tokensCssFromTheme(BASE));
   assert.doesNotMatch(tokensCssFromTheme(legacy), /--ml-primary:/);
+});
+
+test('fontFormatOf: format() by extension, unknown left to the browser', () => {
+  assert.equal(fontFormatOf('/_1_/l3/assets/marca.woff2'), 'woff2');
+  assert.equal(fontFormatOf('/_1_/l3/assets/marca.WOFF?v=1'), 'woff');
+  assert.equal(fontFormatOf('/a.ttf'), 'truetype');
+  assert.equal(fontFormatOf('/a.otf'), 'opentype');
+  assert.equal(fontFormatOf('/a.eot'), '');
+});
+
+test('getFontLoadsCss: custom faces get the format of their own file', () => {
+  const css = getFontLoadsCss([{ name: 'brand', source: 'custom', family: 'Marca', faces: [
+    { src: '/_1_/l3/assets/marca.woff2', weight: 400 },
+    { src: '/_1_/l3/assets/marca-bold.ttf', weight: 700, style: 'italic' },
+    { src: '/_1_/l3/assets/marca.eot' },
+  ] }]);
+  assert.equal(css, [
+    "@font-face { font-family: 'Marca'; src: url('/_1_/l3/assets/marca.woff2') format('woff2'); font-weight: 400; }",
+    "@font-face { font-family: 'Marca'; src: url('/_1_/l3/assets/marca-bold.ttf') format('truetype'); font-weight: 700; font-style: italic; }",
+    "@font-face { font-family: 'Marca'; src: url('/_1_/l3/assets/marca.eot'); }",
+  ].join('\n'));
 });
